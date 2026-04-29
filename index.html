@@ -166,6 +166,69 @@
     color:var(--yellow); letter-spacing:1px; margin-bottom:3px;
   }
   .tt-zone { font-size:9px; margin-bottom:4px; opacity:0.7; letter-spacing:1px; }
+
+  /* WATERMARK */
+  #watermark {
+    position: fixed;
+    bottom: 20px;
+    right: 65px;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    color: var(--steel);
+    opacity: 0.3;
+    letter-spacing: 3px;
+    pointer-events: none;
+    z-index: 100;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* LINKEDIN FOOTER BADGE */
+  #linkedin-badge {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 200;
+    background: rgba(13, 27, 42, 0.95);
+    border: 1px solid var(--blue);
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    transition: transform 0.2s, border-color 0.2s;
+    text-decoration: none;
+  }
+  #linkedin-badge:hover {
+    transform: translateY(-3px);
+    border-color: var(--yellow);
+  }
+  .li-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .li-icon {
+    width: 14px;
+    height: 14px;
+    fill: #0A66C2;
+    background: white;
+    border-radius: 2px;
+  }
+  .li-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    color: var(--yellow);
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+  .li-img {
+    width: 150px;
+    border-radius: 4px;
+    border: 1px solid rgba(143, 163, 177, 0.3);
+  }
 </style>
 </head>
 <body>
@@ -211,6 +274,18 @@
   <div class="tt-zone" id="tt-zone"></div>
   <div id="tt-body"></div>
 </div>
+
+<!-- WATERMARK -->
+<div id="watermark">ERIKA SUSILO</div>
+
+<!-- LINKEDIN BADGE FOOTER -->
+<a id="linkedin-badge" href="https://www.linkedin.com/in/erika-susilo-138b6443/" target="_blank" title="Connect on LinkedIn">
+  <div class="li-header">
+    <svg class="li-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+    <span class="li-name">ERIKA SUSILO</span>
+  </div>
+ 
+</a>
 
 <script>
 // ─── DATA ────────────────────────────────────────────────────────────────────
