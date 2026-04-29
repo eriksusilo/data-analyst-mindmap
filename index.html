@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map of Data Analyst</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;500;600&display=swap');
+
+  :root {
+    --dark:   #0D1B2A;
+    --blue:   #1A3A6B;
+    --yellow: #D4A017;
+    --steel:  #8FA3B1;
+    --white:  #E8EDF2;
+    --bg:     #F0F4F8;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family:'Exo 2',sans-serif;
+    background:var(--bg);
+    overflow:hidden;
+    height:100vh; width:100vw;
+    user-select:none;
+  }
+  
+  /* Canvas default cursor */
+  #canvas-wrap {
+    position:fixed; top:44px; left:0; right:0; bottom:0;
+    cursor: grab;
+  }
+  #canvas-wrap.panning { cursor: grabbing; }
+
+  /* HEADER */
+  #header {
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    background:var(--dark);
+    border-bottom:2px solid var(--blue);
+    padding:8px 20px;
+    display:flex; align-items:center; gap:14px; height:44px;
+  }
+  #header h1 {
+    font-family:'Orbitron',monospace;
+    font-size:14px; font-weight:700;
+    color:var(--white); letter-spacing:3px;
+  }
+  #header .sub { font-size:10px; color:var(--steel); letter-spacing:2px; }
+  .badge {
+    margin-left:auto;
+    font-family:'Orbitron',monospace; font-size:8px;
+    color:var(--yellow); border:1px solid var(--yellow);
+    padding:2px 8px; letter-spacing:1px;
+  }
+
+  svg#mindmap { width:100%; height:100%; }
+
+  /* NODE STYLES */
+  .node-group {
+    cursor: pointer;
+    transition: filter 0.2s;
+  }
+  .node-group:hover {
+    filter: brightness(1.2);
+  }
+  .node-group.dragging {
+    cursor: grabbing;
+    filter: brightness(1.3) drop-shadow(0px 8px 12px rgba(0,0,0,0.3));
+  }
+
+  /* SIDE PANEL */
+  #panel {
+    position:fixed; top:54px; right:12px; z-index:150;
+    background:rgba(13,27,42,0.95);
+    border:1px solid var(--blue);
+    width:210px;
+    font-family:'Exo 2',sans-serif;
+    backdrop-filter: blur(4px);
+  }
+  #panel-header {
+    padding:8px 12px;
+    border-bottom:1px solid var(--blue);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  #panel-header span {
+    font-family:'Orbitron',monospace;
+    font-size:8px; color:var(--yellow); letter-spacing:2px;
+  }
+  .panel-section-label {
+    font-family:'Orbitron',monospace;
+    font-size:7.5px; letter-spacing:1.5px;
+    padding:5px 12px 3px;
+    border-left:2px solid;
+    margin:4px 8px 2px;
+  }
+  .toggle-row {
+    display:flex; align-items:center;
+    padding:4px 12px; gap:8px; cursor:pointer;
+    transition:background 0.15s;
+  }
+  .toggle-row:hover { background:rgba(255,255,255,0.05); }
+  .toggle-dot {
+    width:9px; height:9px; border-radius:1px; flex-shrink:0;
+    transition:opacity 0.2s;
+  }
+  .toggle-label {
+    font-size:10px; color:var(--steel); flex:1;
+    transition:opacity 0.2s;
+  }
+  .toggle-btn {
+    width:28px; height:14px;
+    background:#1A3A6B; border-radius:7px;
+    position:relative; flex-shrink:0;
+    transition:background 0.2s;
+  }
+  .toggle-btn::after {
+    content:''; position:absolute;
+    width:10px; height:10px; border-radius:5px;
+    background:var(--white); top:2px; left:2px;
+    transition:transform 0.2s;
+  }
+  .toggle-row.off .toggle-btn { background:#2C3E50; }
+  .toggle-row.off .toggle-btn::after { transform:translateX(14px); background:#4A5568; }
+  .toggle-row.off .toggle-dot { opacity:0.25; }
+  .toggle-row.off .toggle-label { opacity:0.4; }
+
+  #btn-all {
+    margin:6px 12px 8px;
+    width:calc(100% - 24px);
+    background:var(--blue); border:none;
+    color:var(--white); font-family:'Orbitron',monospace;
+    font-size:8px; letter-spacing:1.5px;
+    padding:5px 8px; cursor:pointer;
+    transition:background 0.2s;
+  }
+  #btn-all:hover { background:#234F9E; }
+
+  /* ZOOM & FONT CONTROLS */
+  #controls {
+    position:fixed; bottom:20px; right:12px; z-index:150;
+    display:flex; flex-direction:column; gap:5px;
+  }
+  .ctrl-btn {
+    width:34px; height:34px;
+    background:var(--dark); border:1px solid var(--blue);
+    color:var(--white); font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.2s; font-family:'Orbitron',monospace;
+  }
+  .ctrl-btn:hover { background:var(--blue); }
+  .ctrl-btn.font-btn { color: var(--yellow); font-size: 12px; }
+
+  /* TOOLTIP */
+  #tooltip {
+    position:fixed;
+    background:var(--dark); border:1px solid var(--blue);
+    color:var(--white); padding:8px 12px;
+    font-size:11px; font-family:'Exo 2',sans-serif;
+    pointer-events:none; z-index:300; display:none;
+    max-width:250px; line-height:1.6;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+  .tt-title {
+    font-family:'Orbitron',monospace; font-size:9px;
+    color:var(--yellow); letter-spacing:1px; margin-bottom:3px;
+  }
+  .tt-zone { font-size:9px; margin-bottom:4px; opacity:0.7; letter-spacing:1px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>DATA ANALYST MINDMAP</h1>
+  </div>
+  <div class="badge">GUNDAM COLOR EDITION</div>
+</div>
+
+<div id="canvas-wrap">
+  <svg id="mindmap" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Efek bayangan untuk kotak -->
+      <filter id="drop-shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.15" />
+      </filter>
+    </defs>
+  </svg>
+</div>
+
+<!-- SIDE PANEL -->
+<div id="panel">
+  <div id="panel-header">
+    <span>// DOMAIN TOGGLE</span>
+  </div>
+  <div id="toggle-list"></div>
+  <button id="btn-all">HIDE ALL / SHOW ALL</button>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn font-btn" id="fontUp" title="Perbesar Font">A+</button>
+  <button class="ctrl-btn font-btn" id="fontDown" title="Perkecil Font">A-</button>
+  <div style="height:5px;"></div>
+  <button class="ctrl-btn" id="zoomIn">+</button>
+  <button class="ctrl-btn" id="zoomOut">−</button>
+  <button class="ctrl-btn" id="resetView">⌖</button>
+</div>
+
+<div id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-zone" id="tt-zone"></div>
+  <div id="tt-body"></div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const ZONES = {
+  hard:    { label:'HARD SKILLS',     color:'#1A3A6B' },
+  soft:    { label:'SOFT SKILLS',     color:'#006064' },
+  context: { label:'CONTEXT / CAREER',color:'#4A148C' },
+};
+
+const DOMAINS = [
+  // ══ HARD SKILLS ══════════════════════════════════════════════════════════
+  {
+    id:'tech', label:'Technical Skills', zone:'hard',
+    color:'#1A3A6B', textColor:'#E8EDF2',
+    angle:235, dist:210,
+    desc:'Core hard skills wajib seorang Data Analyst',
+    children:[
+      { id:'c1', label:'SQL & Database',        desc:'Querying, joins, aggregasi, stored procedure, indexing' },
+      { id:'c2', label:'Python / R',            desc:'Pandas, NumPy, Matplotlib, scikit-learn, ggplot2' },
+      { id:'c3', label:'Excel / Spreadsheet',   desc:'Pivot table, VLOOKUP, Power Query, macro dasar' },
+      { id:'c4', label:'Statistics & Math',     desc:'Probability, hypothesis testing, regresi, distribusi' },
+      { id:'c5', label:'Data Wrangling / ETL',  desc:'Extract, transform, load — pipeline & preprocessing' },
+      { id:'c6', label:'Version Control (Git)', desc:'GitHub/GitLab untuk kolaborasi dan versioning kode' },
+    ]
+  },
+  {
+    id:'analytic', label:'Analytics Types', zone:'hard',
+    color:'#C0392B', textColor:'#F8D7D7',
+    angle:283, dist:218,
+    desc:'Jenis analitik berdasarkan tujuan dan kompleksitas',
+    children:[
+      { id:'c7', label:'Descriptive',     desc:'Apa yang terjadi? — summary, laporan, dashboard' },
+      { id:'c8', label:'Diagnostic',      desc:'Kenapa terjadi? — root cause analysis, drill-down' },
+      { id:'c9', label:'Predictive',      desc:'Apa yang akan terjadi? — forecasting, machine learning' },
+      { id:'c10', label:'Prescriptive',    desc:'Apa yang harus dilakukan? — rekomendasi aksi berbasis data' },
+      { id:'c11', label:'Exploratory EDA', desc:'Eksplorasi awal data sebelum analisis formal' },
+    ]
+  },
+  {
+    id:'tools', label:'Tools & Platforms', zone:'hard',
+    color:'#D4A017', textColor:'#FFF8E1',
+    angle:325, dist:215,
+    desc:'Ekosistem tools yang digunakan sehari-hari analyst',
+    children:[
+      { id:'c12', label:'Power BI',            desc:'Microsoft BI — DAX, Deneb, report publishing, RLS' },
+      { id:'c13', label:'Tableau',             desc:'Interactive visual analytics platform' },
+      { id:'c14', label:'Looker / Metabase',   desc:'Cloud BI & self-serve analytics' },
+      { id:'c15', label:'BigQuery / Redshift', desc:'Cloud data warehouse — SQL at scale' },
+      { id:'c16', label:'Snowflake',           desc:'Cloud data platform multi-cloud' },
+      { id:'c17', label:'Jupyter / VS Code',   desc:'IDE untuk Python notebook & scripting' },
+      { id:'c18', label:'AI-Assisted Tools',   desc:'ChatGPT, Copilot, Gemini untuk produktivitas analyst' },
+    ]
+  },
+  {
+    id:'ops', label:'Data Operations', zone:'hard',
+    color:'#E07B39', textColor:'#FFF3E0',
+    angle:22, dist:215,
+    desc:'Aktivitas operasional pengelolaan data end-to-end',
+    children:[
+      { id:'c19', label:'Data Collection',      desc:'API, scraping, survey, DB, flat files, sensor data' },
+      { id:'c20', label:'Data Cleaning',        desc:'Handling missing values, duplikat, outlier, format' },
+      { id:'c21', label:'Data Validation / QA', desc:'Reconciliation, UAT, data quality check & monitoring' },
+      { id:'c22', label:'Data Governance',      desc:'Data catalog, lineage, policy, stewardship, DAMA' },
+      { id:'c23', label:'Data Pipeline',        desc:'Orchestration: Airflow, n8n, Knime, dbt' },
+      { id:'c24', label:'Data Security',        desc:'Masking, access control, PII handling, enkripsi' },
+    ]
+  },
+  {
+    id:'viz', label:'Visualization & Storytelling', zone:'hard',
+    color:'#2E7D32', textColor:'#E8F5E9',
+    angle:72, dist:232,
+    desc:'Mengubah data menjadi insight yang komunikatif & impactful',
+    children:[
+      { id:'c25', label:'Chart Design',      desc:'Pilih chart yang tepat: bar, line, scatter, heatmap' },
+      { id:'c26', label:'Dashboard',         desc:'KPI dashboard, operational view, executive summary' },
+      { id:'c27', label:'Data Storytelling', desc:'Narasi berbasis data untuk decision maker non-teknis' },
+      { id:'c28', label:'Reporting',         desc:'Automated & scheduled reports — harian/mingguan' },
+      { id:'c29', label:'Presentation',      desc:'Slide deck, executive briefing, stakeholder reporting' },
+    ]
+  },
+
+  // ══ SOFT SKILLS ══════════════════════════════════════════════════════════
+  {
+    id:'soft', label:'Soft Skills', zone:'soft',
+    color:'#006064', textColor:'#E0F7FA',
+    angle:160, dist:218,
+    desc:'Non-technical skills penentu level senioritas analyst',
+    children:[
+      { id:'c30', label:'Communication',        desc:'Translate insight ke bahasa bisnis yang mudah dipahami' },
+      { id:'c31', label:'Stakeholder Mgmt',     desc:'Alignment dengan business owner & tim lintas fungsi' },
+      { id:'c32', label:'Critical Thinking',    desc:'Mempertanyakan asumsi, validasi bias, logika analitik' },
+      { id:'c33', label:'Presentation Skills',  desc:'Menyampaikan insight dengan percaya diri & persuasif' },
+      { id:'c34', label:'Problem Solving',      desc:'Design thinking, 5W1H, fishbone, PDCA, Six Sigma' },
+      { id:'c35', label:'Requirement Gathering',desc:'Elicitation kebutuhan dari stakeholder & end user' },
+      { id:'c36', label:'Business Acumen',      desc:'Memahami P&L, KPI bisnis, dan strategi perusahaan' },
+      { id:'c37', label:'Process Mapping',      desc:'Flowchart, BPMN, swimlane — dokumentasi proses bisnis' },
+      { id:'c38', label:'Gap Analysis',         desc:'Identifikasi gap antara kondisi saat ini vs target' },
+    ]
+  },
+
+  // ══ CONTEXT / CAREER ═════════════════════════════════════════════════════
+  {
+    id:'domain', label:'Domain Specialization', zone:'context',
+    color:'#00695C', textColor:'#E0F2F1',
+    angle:120, dist:225,
+    desc:'Spesialisasi industri yang memperkuat nilai seorang analyst',
+    children:[
+      { id:'c39', label:'Marketing Analytics',   desc:'Campaign, funnel, customer segmentation, CLV' },
+      { id:'c40', label:'Financial Analytics',   desc:'Revenue, forecasting, fraud detection, risk scoring' },
+      { id:'c41', label:'Healthcare Analytics',  desc:'Patient outcomes, clinical data, ops efficiency' },
+      { id:'c42', label:'GIS / Spatial',         desc:'Geospatial data, QGIS, Google Earth Engine, PostGIS' },
+      { id:'c43', label:'HR / People Analytics', desc:'Attrition, workforce planning, OKR tracking' },
+      { id:'c44', label:'Operational Analytics', desc:'Supply chain, logistik, telco network ops' },
+    ]
+  },
+  {
+    id:'career', label:'Career Development', zone:'context',
+    color:'#4A148C', textColor:'#EDE7F6',
+    angle:195, dist:215,
+    desc:'Aktivitas pengembangan diri seorang Data Analyst',
+    children:[
+      { id:'c45', label:'Certification', desc:'Google DA, DP-600, AWS, Tableau Desktop Certified' },
+      { id:'c46', label:'Portfolio',     desc:'GitHub, Kaggle, website personal, case studies nyata' },
+      { id:'c47', label:'Self Study',    desc:'Coursera, DQLab, YouTube, dokumentasi & paper' },
+      { id:'c48', label:'Peer Groups',   desc:'Komunitas data, Discord, Telegram group, meetup lokal' },
+      { id:'c49', label:'Conferences',   desc:'DataFest, PyData, lokal & internasional events' },
+      { id:'c50', label:'Mentoring',     desc:'Jadi mentor atau cari mentor — percepat growth karier' },
+    ]
+  },
+  {
+    id:'roles', label:'Data Roles & Career Path', zone:'context',
+    color:'#6A1B9A', textColor:'#F3E5F5',
+    angle:152, dist:222,
+    desc:'Posisi-posisi umum di ekosistem data yang bisa dituju dari Data Analyst',
+    children:[
+      { id:'c51', label:'Data Analyst',      desc:'Entry–Senior: insight, dashboard, reporting (YOU ARE HERE)', highlight:true },
+      { id:'c52', label:'BI Developer',      desc:'Spesialis reporting & dashboard — Power BI, Tableau, Looker' },
+      { id:'c53', label:'Data Engineer',     desc:'Pipeline, ETL, data infra — SQL, Python, Spark, Airflow' },
+      { id:'c54', label:'Data Scientist',    desc:'ML model, statistik lanjutan, eksperimen & prediksi' },
+      { id:'c55', label:'ML Engineer',       desc:'Deploy & scale ML model ke production environment' },
+      { id:'c56', label:'Analytics Manager', desc:'Memimpin tim analyst, strategy & roadmap data analytics' },
+      { id:'c57', label:'AI Gov Analyst',    desc:'AI risk, ethics, compliance — ISO 42001, NIST AI RMF' },
+      { id:'c58', label:'Business Analyst',  desc:'Jembatan bisnis & teknologi — requirement, proses, solusi' },
+      { id:'c59', label:'Data Governance',   desc:'Policy, catalog, stewardship, kualitas data organisasi' },
+    ]
+  },
+];
+
+// ─── SETUP STATE & VARIABLES ─────────────────────────────────────────────────
+const svg = document.getElementById('mindmap');
+const wrap = document.getElementById('canvas-wrap');
+const NS  = 'http://www.w3.org/2000/svg';
+const CX  = 1520, CY = 980;
+
+let viewX=0, viewY=0, scale=1;
+let fontScale = 1.0; // Untuk fitur A+ / A-
+let isPanning=false, startPanX, startPanY, startVX, startVY;
+
+// State penyimpan node (pusat, domain, child) & relasi/garis
+let nodes = []; 
+let links = [];
+
+// Drag state untuk interaksi node
+let activeNode = null;
+let dragStartX, dragStartY, nodeStartX, nodeStartY;
+
+// visibility state
+const visible = {};
+DOMAINS.forEach(d => visible[d.id] = true);
+
+// ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
+function mk(tag, attrs={}) {
+  const el = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k,v);
+  return el;
+}
+
+function splitLabel(label, maxLen=16) {
+  const words=label.split(' '); const lines=[]; let cur='';
+  for (const w of words) {
+    if ((cur+' '+w).trim().length>maxLen && cur) { lines.push(cur.trim()); cur=w; }
+    else { cur=(cur+' '+w).trim(); }
+  }
+  if (cur) lines.push(cur.trim());
+  return lines;
+}
+
+// Draw Text relative to (0,0) inside a group
+function addTextCentered(g, label, fontSize, fill, fontFamily, weight, maxLen=16) {
+  const parts = label.length>maxLen ? splitLabel(label,maxLen) : [label];
+  const currentFontSize = fontSize * fontScale;
+  const lh = currentFontSize*1.3;
+  parts.forEach((p,i) => {
+    const t = mk('text',{
+      x: 0, 
+      y: (i-(parts.length-1)/2)*lh,
+      'font-size': currentFontSize, 
+      'data-base-size': fontSize, // Simpan size asli untuk penskalaan A+/A-
+      fill, 'font-family':fontFamily,
+      'font-weight':weight, 'text-anchor':'middle',
+      'dominant-baseline':'central',
+      'letter-spacing': fontFamily.includes('Orbitron')?'0.5':'0'
+    });
+    t.textContent = p;
+    g.appendChild(t);
+  });
+}
+
+// Kalkulasi Path Bezier (garis melengkung)
+function getCurvePath(x1, y1, x2, y2) {
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const cp1X = (x1 + midX) / 2;
+  const cp1Y = y1;
+  const cp2X = (x2 + midX) / 2;
+  const cp2Y = y2;
+  return `M ${x1} ${y1} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${x2} ${y2}`;
+}
+
+function updateLines() {
+  links.forEach(link => {
+    link.pathEl.setAttribute('d', getCurvePath(link.source.x, link.source.y, link.target.x, link.target.y));
+  });
+}
+
+function addTooltip(el, title, zone, desc) {
+  const tt=document.getElementById('tooltip');
+  const ttT=document.getElementById('tt-title');
+  const ttZ=document.getElementById('tt-zone');
+  const ttB=document.getElementById('tt-body');
+  const zData=ZONES[zone];
+  
+  el.addEventListener('mouseenter',()=>{
+    if(activeNode) return; 
+    ttT.textContent=title.toUpperCase();
+    ttZ.textContent=zData?`// ${zData.label}`:'';
+    ttZ.style.color=zData?zData.color:'#8FA3B1';
+    ttB.textContent=desc;
+    tt.style.display='block';
+  });
+  el.addEventListener('mousemove',e=>{
+    if(activeNode) { tt.style.display='none'; return; }
+    tt.style.left=(e.clientX+14)+'px';
+    tt.style.top=(e.clientY-10)+'px';
+  });
+  el.addEventListener('mouseleave',()=>{ tt.style.display='none'; });
+}
+
+// ─── BUILD MINDMAP ───────────────────────────────────────────────────────────
+function buildMindmap() {
+  const defs = svg.querySelector('defs');
+  svg.innerHTML = '';
+  if(defs) svg.appendChild(defs);
+  
+  nodes = [];
+  links = [];
+
+  const root = mk('g',{id:'root'});
+  const linesGroup = mk('g', {id: 'lines-group'});
+  const nodesGroup = mk('g', {id: 'nodes-group'});
+  
+  root.appendChild(linesGroup);
+  root.appendChild(nodesGroup);
+
+  // 1. Center Node
+  const centerNode = { id: 'center', x: CX, y: CY, el: null };
+  nodes.push(centerNode);
+
+  const cw=134, ch=58;
+  const cg=mk('g', {
+    class: 'node-group',
+    transform: `translate(${CX}, ${CY})`
+  });
+  cg.appendChild(mk('rect',{
+    x:-cw/2-3, y:-ch/2-3, width:cw+6, height:ch+6, rx:6,
+    fill:'none', stroke:'#D4A01760', 'stroke-width':'1'
+  }));
+  cg.appendChild(mk('rect',{
+    x:-cw/2, y:-ch/2, width:cw, height:ch, rx:4,
+    fill:'#0D1B2A', stroke:'#D4A017', 'stroke-width':'2.5',
+    filter: 'url(#drop-shadow)'
+  }));
+  
+  addTextCentered(cg, 'Data Analyst', 14, '#D4A017', 'Orbitron, monospace', '700', 10);
+
+  centerNode.el = cg;
+  nodesGroup.appendChild(cg);
+
+  // 2. Process Domains and Children
+  DOMAINS.forEach(domain => {
+    const rad = domain.angle * Math.PI / 180;
+    const dx = CX + Math.cos(rad) * domain.dist;
+    const dy = CY + Math.sin(rad) * domain.dist;
+
+    const domainNode = { id: domain.id, x: dx, y: dy, el: null, parentId: domain.id };
+    nodes.push(domainNode);
+
+    const domainContainer = mk('g', {id: `domain-container-${domain.id}`});
+    if(!visible[domain.id]) domainContainer.setAttribute('display','none');
+    
+    const pathEl = mk('path', {
+      d: getCurvePath(CX, CY, dx, dy),
+      fill: 'none', stroke: domain.color, 'stroke-width': '2',
+      'stroke-dasharray': '6,3', opacity: '0.6'
+    });
+    links.push({ source: centerNode, target: domainNode, pathEl });
+    domainContainer.appendChild(pathEl);
+
+    const parts = splitLabel(domain.label, 15);
+    const dw = Math.max(parts.reduce((m,p)=>Math.max(m,p.length),0)*7.8+30, 118);
+    const dh = parts.length>1 ? 46 : 32;
+
+    const dg = mk('g', {
+      class: 'node-group',
+      transform: `translate(${dx}, ${dy})`
+    });
+    dg.appendChild(mk('rect', {
+      x: -dw/2, y: -dh/2, width: dw, height: dh, rx: 4,
+      fill: domain.color, stroke: domain.color, 'stroke-width': '1.5',
+      filter: 'url(#drop-shadow)'
+    }));
+    addTextCentered(dg, domain.label, 9.5, domain.textColor, 'Orbitron, monospace', '600', 15);
+    addTooltip(dg, domain.label, domain.zone, domain.desc);
+    
+    domainNode.el = dg;
+    
+    // 3. Process Children
+    const cc = domain.children.length;
+    const spread = Math.min(100, cc*22);
+
+    domain.children.forEach((child, ci) => {
+      const offset = (ci - (cc-1)/2) * (spread/Math.max(cc-1,1));
+      const cAngle = rad + offset * Math.PI / 180;
+      const cDist = child.highlight ? 120 : 135;
+      const cx2 = dx + Math.cos(cAngle) * cDist;
+      const cy2 = dy + Math.sin(cAngle) * cDist;
+
+      const childNode = { id: child.id, x: cx2, y: cy2, el: null, parentId: domain.id };
+      nodes.push(childNode);
+
+      const childPathEl = mk('path',{
+        d: getCurvePath(dx, dy, cx2, cy2),
+        fill: 'none', stroke: domain.color, 'stroke-width': '1',
+        opacity: '0.5', 'stroke-dasharray': '4,3'
+      });
+      links.push({ source: domainNode, target: childNode, pathEl: childPathEl });
+      domainContainer.appendChild(childPathEl);
+
+      // Child font diset 11px (sebelumnya 8.5px, naik ~30%)
+      const childBaseFont = 11; 
+      const cparts = splitLabel(child.label, 18);
+      // Penyesuaian box multiplier dari 6.8 ke 8.5 karena font lebih besar
+      const cw2 = Math.min(Math.max(cparts.reduce((m,p)=>Math.max(m,p.length),0)*8.5+24, 85), 180);
+      const ch2 = cparts.length>1 ? 38 : 28;
+
+      const fill = child.highlight ? domain.color : domain.color+'2A';
+      const strokeW = child.highlight ? '2':'1';
+      const tColor  = child.highlight ? domain.textColor : domain.color;
+
+      const childG = mk('g', {
+        class: 'node-group',
+        transform: `translate(${cx2}, ${cy2})`
+      });
+      childG.appendChild(mk('rect', {
+        x: -cw2/2, y: -ch2/2, width: cw2, height: ch2, rx: 3,
+        fill, stroke: domain.color, 'stroke-width': strokeW,
+        filter: 'url(#drop-shadow)'
+      }));
+      addTextCentered(childG, child.label, childBaseFont, tColor, 'Exo 2, sans-serif', child.highlight?'600':'500', 18);
+      addTooltip(childG, child.label, domain.zone, child.desc);
+      
+      childNode.el = childG;
+      domainContainer.appendChild(childG);
+      
+      attachDragEvent(childG, childNode);
+    });
+
+    domainContainer.appendChild(dg);
+    linesGroup.appendChild(domainContainer); 
+    attachDragEvent(dg, domainNode);
+  });
+  
+  attachDragEvent(cg, centerNode);
+  svg.appendChild(root);
+  applyTransform();
+}
+
+// ─── DRAG & DROP LOGIC (NODES) ───────────────────────────────────────────────
+function attachDragEvent(element, nodeData) {
+  element.addEventListener('mousedown', (e) => {
+    e.stopPropagation(); 
+    activeNode = nodeData;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    nodeStartX = nodeData.x;
+    nodeStartY = nodeData.y;
+    element.classList.add('dragging');
+    document.getElementById('tooltip').style.display = 'none'; 
+  });
+}
+
+window.addEventListener('mousemove', (e) => {
+  if (activeNode) {
+    const dx = (e.clientX - dragStartX) / scale;
+    const dy = (e.clientY - dragStartY) / scale;
+    activeNode.x = nodeStartX + dx;
+    activeNode.y = nodeStartY + dy;
+    activeNode.el.setAttribute('transform', `translate(${activeNode.x}, ${activeNode.y})`);
+    updateLines();
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (activeNode) {
+    activeNode.el.classList.remove('dragging');
+    activeNode = null;
+  }
+});
+
+
+// ─── SIDE PANEL TOGGLES ──────────────────────────────────────────────────────
+function buildPanel() {
+  const list=document.getElementById('toggle-list');
+  list.innerHTML='';
+
+  const sections={ hard:[], soft:[], context:[] };
+  DOMAINS.forEach(d=> sections[d.zone].push(d));
+
+  const sectionMeta={
+    hard:    { label:'HARD SKILLS',     color:'#1A3A6B' },
+    soft:    { label:'SOFT SKILLS',     color:'#006064' },
+    context: { label:'CONTEXT / CAREER',color:'#4A148C' },
+  };
+
+  Object.entries(sections).forEach(([zone, domains])=>{
+    const m=sectionMeta[zone];
+    const sl=document.createElement('div');
+    sl.className='panel-section-label';
+    sl.style.color=m.color;
+    sl.style.borderColor=m.color;
+    sl.textContent=m.label;
+    list.appendChild(sl);
+
+    domains.forEach(domain=>{
+      const row=document.createElement('div');
+      row.className='toggle-row' + (visible[domain.id]?'':' off');
+      row.innerHTML=`
+        <div class="toggle-dot" style="background:${domain.color}"></div>
+        <div class="toggle-label">${domain.label}</div>
+        <div class="toggle-btn"></div>
+      `;
+      row.addEventListener('click',()=>{
+        visible[domain.id]=!visible[domain.id];
+        row.classList.toggle('off');
+        const dContainer=document.getElementById(`domain-container-${domain.id}`);
+        if(dContainer) dContainer.setAttribute('display', visible[domain.id]?'':'none');
+      });
+      list.appendChild(row);
+    });
+  });
+}
+
+// Show all / Hide all toggle
+let allVisible=true;
+document.getElementById('btn-all').addEventListener('click',()=>{
+  allVisible=!allVisible;
+  DOMAINS.forEach(d=>{
+    visible[d.id]=allVisible;
+    const dContainer=document.getElementById(`domain-container-${d.id}`);
+    if(dContainer) dContainer.setAttribute('display',allVisible?'':'none');
+  });
+  document.querySelectorAll('.toggle-row').forEach(r=>{
+    if(allVisible) r.classList.remove('off');
+    else r.classList.add('off');
+  });
+  document.getElementById('btn-all').textContent = allVisible ? 'HIDE ALL / SHOW ALL' : 'SHOW ALL DOMAINS';
+});
+
+// ─── PAN & ZOOM (CANVAS) ─────────────────────────────────────────────────────
+function applyTransform(){
+  const root = document.getElementById('root');
+  if(root) root.setAttribute('transform', `translate(${viewX},${viewY}) scale(${scale})`);
+}
+
+function initView(){
+  scale=0.68;
+  viewX=wrap.clientWidth/2 - CX*scale - 100; 
+  viewY=wrap.clientHeight/2 - CY*scale;
+  applyTransform();
+}
+
+// FONT SCALING LOGIC
+function updateAllFonts() {
+  const texts = svg.querySelectorAll('text');
+  texts.forEach(t => {
+    const base = parseFloat(t.getAttribute('data-base-size'));
+    const newSize = base * fontScale;
+    t.setAttribute('font-size', newSize);
+    
+    // Sesuaikan line height jika multi-line
+    const lines = t.parentNode.querySelectorAll('text');
+    if (lines.length > 1) {
+      const idx = Array.from(lines).indexOf(t);
+      const lh = newSize * 1.3;
+      t.setAttribute('y', (idx - (lines.length - 1) / 2) * lh);
+    }
+  });
+}
+
+document.getElementById('fontUp').onclick = () => {
+  fontScale = Math.min(2.0, fontScale + 0.1);
+  updateAllFonts();
+};
+document.getElementById('fontDown').onclick = () => {
+  fontScale = Math.max(0.5, fontScale - 0.1);
+  updateAllFonts();
+};
+
+wrap.addEventListener('mousedown',e=>{
+  if(e.target.tagName === 'svg' || e.target.id === 'canvas-wrap') {
+    isPanning=true; 
+    startPanX=e.clientX; 
+    startPanY=e.clientY;
+    startVX=viewX; 
+    startVY=viewY;
+    wrap.classList.add('panning');
+  }
+});
+window.addEventListener('mousemove',e=>{
+  if(isPanning) {
+    viewX=startVX+e.clientX-startPanX; 
+    viewY=startVY+e.clientY-startPanY;
+    applyTransform();
+  }
+});
+window.addEventListener('mouseup',()=>{ 
+  isPanning=false; 
+  wrap.classList.remove('panning'); 
+});
+
+svg.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const d = e.deltaY > 0 ? 0.9 : 1.1;
+  const rect = svg.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  viewX = mx - (mx - viewX) * d; 
+  viewY = my - (my - viewY) * d;
+  scale = Math.max(0.15, Math.min(3, scale * d));
+  applyTransform();
+},{passive:false});
+
+document.getElementById('zoomIn').onclick=()=>{ scale=Math.min(3,scale*1.15); applyTransform(); };
+document.getElementById('zoomOut').onclick=()=>{ scale=Math.max(0.15,scale*0.85); applyTransform(); };
+document.getElementById('resetView').onclick=()=>{ fontScale=1.0; updateAllFonts(); initView(); };
+
+// Touch events 
+let lastTD=null;
+wrap.addEventListener('touchstart',e=>{
+  if(e.touches.length===1 && !activeNode){ 
+    isPanning=true; 
+    startPanX=e.touches[0].clientX; 
+    startPanY=e.touches[0].clientY; 
+    startVX=viewX; 
+    startVY=viewY; 
+  }
+},{passive:true});
+wrap.addEventListener('touchmove',e=>{
+  if(e.touches.length===1 && isPanning){ 
+    viewX=startVX+e.touches[0].clientX-startPanX; 
+    viewY=startVY+e.touches[0].clientY-startPanY; 
+    applyTransform(); 
+  }
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(lastTD){ 
+      const centerTouchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const centerTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const rect = svg.getBoundingClientRect();
+      const mx = centerTouchX - rect.left;
+      const my = centerTouchY - rect.top;
+      const zoomD = d/lastTD;
+      viewX = mx - (mx - viewX) * zoomD; 
+      viewY = my - (my - viewY) * zoomD;
+      scale=Math.max(0.15,Math.min(3,scale*zoomD)); 
+      applyTransform(); 
+    }
+    lastTD=d;
+  }
+},{passive:true});
+wrap.addEventListener('touchend',()=>{ isPanning=false; lastTD=null; });
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+buildMindmap();
+buildPanel();
+initView();
+</script>
+</body>
+</html>
